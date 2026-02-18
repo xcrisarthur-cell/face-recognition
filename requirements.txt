@@ -1,0 +1,12 @@
+# Face Recognition - Dependencies
+# Penting: Gunakan Python 3.9, 3.10, 3.11, atau 3.12 (TensorFlow belum mendukung 3.13+)
+# Buat venv dengan: python3.12 -m venv venv  (atau python3.11)
+deepface>=0.0.79
+opencv-python>=4.8.0
+numpy>=1.24.0
+Pillow>=10.0.0
+tensorflow>=2.15.0
+tf-keras  # Diperlukan oleh retina-face/DeepFace untuk TensorFlow 2.16+
+
+# Optional: untuk akselerasi GPU (uncomment jika punya NVIDIA GPU)
+# tensorflow-gpu>=2.15.0
