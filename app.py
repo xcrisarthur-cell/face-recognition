@@ -18,11 +18,23 @@ import recognition_engine as engine
 
 def cmd_register(args):
     if args.folder:
-        count = engine.register_face_from_folder(args.folder, args.name)
-        print(f"Terdaftar: {count} wajah dari folder '{args.folder}' sebagai '{args.name or os.path.basename(args.folder)}'.")
+        count = engine.register_face_from_folder(
+            args.folder,
+            args.name,
+            augment=getattr(args, "augment", None),
+        )
+        name = args.name or os.path.basename(os.path.normpath(args.folder))
+        print(f"Terdaftar: {count} embedding dari folder '{args.folder}' sebagai '{name}'.")
+        if getattr(config, "MIN_IMAGES_PER_PERSON_RECOMMENDED", 3) and count > 0:
+            rec = config.MIN_IMAGES_PER_PERSON_RECOMMENDED
+            if count < rec:
+                print(f"  Tip: untuk akurasi lebih baik, tambah minimal {rec} foto per orang (atau gunakan --augment).")
     elif args.image and args.name:
-        ok = engine.register_face(args.image, args.name)
-        print("Berhasil mendaftarkan wajah." if ok else "Gagal (pastikan file ada dan berisi wajah).")
+        count = engine.register_face(args.image, args.name, all_faces=getattr(args, "all_faces", False))
+        if count > 0:
+            print(f"Berhasil mendaftarkan {count} wajah.")
+        else:
+            print("Gagal (pastikan file ada dan berisi wajah).")
     else:
         print("Untuk register: berikan --image PATH --name NAMA, atau --folder PATH [--name NAMA].")
         sys.exit(1)
@@ -85,9 +97,13 @@ def cmd_list(args):
     if not records:
         print("Database wajah kosong.")
         return
-    print(f"Total {len(records)} wajah terdaftar:")
-    for r in records:
-        print(f"  - {r.get('identity', '?')}")
+    by_id = face_db.get_count_by_identity()
+    rec = getattr(config, "MIN_IMAGES_PER_PERSON_RECOMMENDED", 3)
+    print(f"Total {len(records)} embedding, {len(by_id)} orang:")
+    for identity in face_db.get_identities():
+        n = by_id.get(identity, 0)
+        tip = f" (disarankan >= {rec} foto)" if n < rec else ""
+        print(f"  - {identity}: {n} foto{tip}")
 
 
 def main():
@@ -99,6 +115,8 @@ def main():
     p_register.add_argument("--image", "-i", help="Path gambar wajah")
     p_register.add_argument("--folder", "-f", help="Path folder berisi gambar satu orang")
     p_register.add_argument("--name", "-n", help="Nama identitas (wajib untuk --image)")
+    p_register.add_argument("--augment", "-a", action="store_true", help="Dari folder: tambah embedding dari flip & variasi brightness (lebih akurat)")
+    p_register.add_argument("--all-faces", action="store_true", help="Dari satu gambar: daftarkan semua wajah terdeteksi sebagai nama yang sama")
     p_register.set_defaults(func=cmd_register)
 
     # recognize

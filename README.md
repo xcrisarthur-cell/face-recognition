@@ -5,10 +5,28 @@ Program **face recognition** berbasis **DeepFace** dengan model **ArcFace** untu
 ## Fitur
 
 - **Model ArcFace** – state-of-the-art untuk face recognition (akurasi tinggi)
+- **Detektor RetinaFace** – deteksi wajah lebih akurat (wajah kecil, samping, pencahayaan beragam)
+- **Banyak foto per orang** – dukung banyak embedding per identitas dengan strategi **voting** atau **centroid**
+- **Preprocessing** – normalisasi pencahayaan (CLAHE) sebelum ekstraksi embedding
+- **Augmentasi saat registrasi** – dari satu foto bisa generate variasi (flip, brightness) untuk data lebih kaya
 - **Pendaftaran wajah** – dari satu gambar atau folder (satu folder = satu identitas)
 - **Identifikasi** – kenali wajah dari gambar atau frame video
 - **Verifikasi** – cek apakah dua foto adalah wajah yang sama
 - **Webcam** – deteksi dan kenali wajah secara real-time
+
+## Meningkatkan akurasi
+
+1. **Tambahkan banyak foto per orang** (minimal 3–5, ideal 10+): variasi ekspresi, angle, dan pencahayaan.
+2. **Daftar dari folder dengan `--augment`**:  
+   `python app.py register --folder known_faces/John --augment`  
+   Setiap foto akan menghasilkan beberapa embedding (asli + flip + variasi brightness), sehingga akurasi lebih stabil.
+3. **Satu gambar berisi banyak wajah orang yang sama**:  
+   `python app.py register --image grup.jpg --name "John" --all-faces`
+4. **Di `config.py`**:
+   - `DETECTOR_BACKEND = "retinaface"` (default) untuk deteksi lebih baik.
+   - `MATCH_STRATEGY = "voting"` (default) atau `"centroid"` jika tiap orang punya banyak foto.
+   - `PREPROCESS_INPUT = True` (default) untuk normalisasi pencahayaan.
+   - `MIN_SIMILARITY_THRESHOLD`: naikkan (mis. 0.6) jika banyak false positive, turunkan (mis. 0.5) jika banyak false negative.
 
 ## Persyaratan
 
@@ -101,6 +119,14 @@ Dari folder (semua gambar di folder = satu orang):
 python app.py register --folder path/ke/folder/NamaOrang --name "Nama Orang"
 # atau nama otomatis dari nama folder:
 python app.py register --folder known_faces/John
+# dengan augmentasi (flip + variasi brightness) untuk akurasi lebih baik:
+python app.py register --folder known_faces/John --augment
+```
+
+Dari satu gambar, daftarkan **semua wajah** yang terdeteksi (mis. foto grup) sebagai satu nama:
+
+```bash
+python app.py register --image grup.jpg --name "Nama Orang" --all-faces
 ```
 
 ### 2. Kenali wajah dari gambar
@@ -129,6 +155,8 @@ Tekan **q** untuk keluar.
 python app.py list
 ```
 
+Menampilkan jumlah embedding per orang; jika di bawah rekomendasi (default 3), akan ada saran untuk menambah foto.
+
 ## Struktur folder disarankan
 
 ```
@@ -153,14 +181,12 @@ ProjectFaceRecog/
 | Variabel | Deskripsi |
 |----------|-----------|
 | `MODEL_NAME` | Model: `"ArcFace"` (default), `"Facenet512"`, `"Facenet"`, `"VGG-Face"`, dll. |
-| `DETECTOR_BACKEND` | Detektor wajah: `"opencv"`, `"retinaface"`, `"mtcnn"`, `"ssd"`, dll. |
-| `MIN_SIMILARITY_THRESHOLD` | Ambang similarity (0–1). Semakin tinggi semakin ketat. |
-
-Untuk deteksi wajah yang lebih tangguh (wajah kecil/samping), ubah ke:
-
-```python
-DETECTOR_BACKEND = "retinaface"  # atau "mtcnn"
-```
+| `DETECTOR_BACKEND` | Detektor wajah: `"retinaface"` (default), `"mtcnn"`, `"opencv"`, `"ssd"`, dll. |
+| `MIN_SIMILARITY_THRESHOLD` | Ambang similarity (0–1). Semakin tinggi semakin ketat (default 0.55). |
+| `MATCH_STRATEGY` | `"voting"` (default), `"centroid"`, atau `"closest"` saat satu orang punya banyak embedding. |
+| `PREPROCESS_INPUT` | `True` (default): normalisasi pencahayaan sebelum ekstraksi embedding. |
+| `REGISTER_AUGMENT` | `True` (default): saat daftar dari folder, tambah embedding dari augmentasi (flip, brightness). |
+| `MIN_IMAGES_PER_PERSON_RECOMMENDED` | Rekomendasi minimal foto per orang (default 3); dipakai untuk saran di CLI. |
 
 ## Contoh di kode Python
 
