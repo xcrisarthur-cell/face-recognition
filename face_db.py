@@ -157,6 +157,20 @@ def find_closest(
     return _find_closest_single(emb_norm, records, th)
 
 
+def remove_identity(identity: str) -> int:
+    """
+    Hapus semua embedding untuk satu identitas (nama).
+    Returns: jumlah record yang dihapus.
+    """
+    records = _load_db()
+    before = len(records)
+    records = [r for r in records if r["identity"] != identity]
+    removed = before - len(records)
+    if removed > 0:
+        _save_db(records)
+    return removed
+
+
 def clear_db() -> None:
     """Kosongkan database wajah."""
     _save_db([])

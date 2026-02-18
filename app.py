@@ -6,6 +6,7 @@ Perintah:
   - recognize: kenali wajah dari gambar
   - verify: bandingkan dua gambar (apakah wajah sama)
   - webcam: deteksi & kenali wajah dari webcam
+  - remove: hapus satu identitas dari database
 """
 import argparse
 import os
@@ -92,6 +93,18 @@ def cmd_webcam(args):
     cv2.destroyAllWindows()
 
 
+def cmd_remove(args):
+    name = getattr(args, "name", None) or getattr(args, "identity", None)
+    if not name:
+        print("Berikan --name NAMA yang akan dihapus.")
+        sys.exit(1)
+    removed = face_db.remove_identity(name)
+    if removed > 0:
+        print(f"Dihapus: {removed} embedding untuk '{name}'.")
+    else:
+        print(f"Tidak ada data untuk '{name}' di database.")
+
+
 def cmd_list(args):
     records = face_db.get_all()
     if not records:
@@ -138,6 +151,11 @@ def main():
     # list
     p_list = sub.add_parser("list", help="Tampilkan daftar wajah terdaftar")
     p_list.set_defaults(func=cmd_list)
+
+    # remove
+    p_remove = sub.add_parser("remove", help="Hapus satu identitas (nama) dari database")
+    p_remove.add_argument("--name", "-n", required=True, help="Nama identitas yang akan dihapus")
+    p_remove.set_defaults(func=cmd_remove)
 
     args = parser.parse_args()
     if not args.command:

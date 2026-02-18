@@ -19,10 +19,21 @@ def _preprocess_image(img: np.ndarray) -> np.ndarray:
     if not getattr(config, "PREPROCESS_INPUT", True):
         return img
     try:
+        # Pastikan BGR 3-channel uint8 (hindari error merge pada gambar grayscale/16-bit)
+        if img.ndim == 2:
+            img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+        elif img.shape[2] == 4:
+            img = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
+        if img.dtype != np.uint8:
+            img = np.clip(img, 0, 255).astype(np.uint8)
         lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
         l, a, b = cv2.split(lab)
         clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
         l = clahe.apply(l)
+        # Pastikan L sama dtype dan shape dengan a, b (hindari error merge di OpenCV)
+        l = np.asarray(l, dtype=a.dtype)
+        if l.shape != a.shape:
+            l = cv2.resize(l, (a.shape[1], a.shape[0]))
         lab = cv2.merge([l, a, b])
         return cv2.cvtColor(lab, cv2.COLOR_LAB2BGR)
     except Exception:
@@ -32,11 +43,18 @@ def _preprocess_image(img: np.ndarray) -> np.ndarray:
 def _load_and_preprocess(image_input: Union[str, np.ndarray]) -> np.ndarray:
     """Load gambar (dari path atau array), preprocess, return BGR array."""
     if isinstance(image_input, np.ndarray):
-        img = image_input
+        img = image_input.copy()
     else:
         img = cv2.imread(image_input)
         if img is None:
             raise ValueError(f"Cannot read image: {image_input}")
+    # Normalisasi ke BGR uint8 3-channel sebelum preprocessing (hindari error CLAHE/merge)
+    if img.ndim == 2:
+        img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+    elif img.shape[2] == 4:
+        img = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
+    if img.dtype != np.uint8:
+        img = np.clip(img.astype(np.float64), 0, 255).astype(np.uint8)
     return _preprocess_image(img)
 
 
@@ -60,13 +78,16 @@ def _augment_image(img: np.ndarray) -> List[np.ndarray]:
     """
     Hasilkan variasi gambar untuk augmentasi: asli, flip horizontal, brightness +/-.
     Dipakai saat registrasi agar satu foto memberi beberapa embedding.
+    Semua channel harus satu dtype agar cv2.merge tidak error (OpenCV 4.x).
     """
     out = [img]
     out.append(cv2.flip(img, 1))
-    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV).astype(np.float32)
+    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
     h, s, v = cv2.split(hsv)
+    v = v.astype(np.float32)
     v_brighter = np.clip(v * 1.1, 0, 255).astype(np.uint8)
     v_darker = np.clip(v * 0.9, 0, 255).astype(np.uint8)
+    # merge butuh semua channel dtype sama (uint8)
     out.append(cv2.cvtColor(cv2.merge([h, s, v_brighter]), cv2.COLOR_HSV2BGR))
     out.append(cv2.cvtColor(cv2.merge([h, s, v_darker]), cv2.COLOR_HSV2BGR))
     return out
@@ -126,6 +147,7 @@ def register_face_from_folder(
             continue
         try:
             img = _load_and_preprocess(path)
+            added_this = 0
             if use_augment:
                 for aug_img in _augment_image(img):
                     reps = DeepFace.represent(
@@ -140,11 +162,17 @@ def register_face_from_folder(
                         if emb is not None:
                             face_db.add_face(name, emb, path)
                             count += 1
+                            added_this += 1
                         break
             else:
-                added = register_face(path, name, all_faces=False)
-                count += added
-        except Exception:
+                added_this = register_face(path, name, all_faces=False)
+                count += added_this
+            if added_this == 0:
+                import sys
+                print(f"  Tidak ada wajah terdeteksi: {f}", file=sys.stderr)
+        except Exception as e:
+            import sys
+            print(f"  Skip {f}: {e}", file=sys.stderr)
             continue
     return count
 
